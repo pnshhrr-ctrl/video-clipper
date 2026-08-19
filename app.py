@@ -22,7 +22,7 @@ if st.button("Process & Cut Video"):
             
             # ১. ইউটিউব ভিডিও ডাউনলোড (yt-dlp)
             ydl_opts = {
-                'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+                'format': 'best',
                 'outtmpl': 'input_video.mp4',
                 'overwrites': True
             }
