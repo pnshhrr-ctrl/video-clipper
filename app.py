@@ -12,6 +12,7 @@ if not hasattr(PIL.Image, 'ANTIALIAS'):
 
 from moviepy.video.io.VideoFileClip import VideoFileClip
 import moviepy.video.fx.all as vfx
+import moviepy.audio.fx.all as afx
 
 # Bangla font loader
 FONT_FILE = "BanglaFont.ttf"
@@ -20,8 +21,9 @@ def get_font():
         try:
             font_url = "https://github.com/google/fonts/raw/main/ofl/notosansbengali/NotoSansBengali%5Bwdth%2Cwght%5D.ttf"
             res = requests.get(font_url)
-            with open(FONT_FILE, "wb") as f:
-                f.write(res.content)
+            if res.status_code == 200:
+                with open(FONT_FILE, "wb") as f:
+                    f.write(res.content)
         except Exception:
             pass
 
@@ -34,7 +36,7 @@ if "zip_data" not in st.session_state:
 
 uploaded_file = st.file_uploader("ভিডিও ফাইল সিলেক্ট করুন (MP4)", type=["mp4"])
 header_text = st.text_input("উপরে ক্যাপশন টেক্সট:", value="শেষের অংশটা মিস করবেন না! 😱")
-watermark_text = st.text_input("নিচে পেজের নাম/ওয়াটারমার্ক:", value="Follow for More @MyPage")
+watermark_text = st.text_input("নিচে পেজের নাম/ওয়াটারমার্ক:", value="Follow for More @CineBongo")
 
 if uploaded_file is not None:
     if st.button("Process & Transform Video"):
@@ -77,9 +79,9 @@ if uploaded_file is not None:
                 # 4. Color Grading
                 subclip = subclip.fx(vfx.colorx, 1.12)
                 
-                # 5. Lower Audio Volume
+                # 5. Audio Volume Adjustment (Applied directly to audio track)
                 if subclip.audio is not None:
-                    subclip = subclip.volumex(0.35)
+                    subclip.audio = subclip.audio.fx(afx.volumex, 0.35)
 
                 # 6. Top & Bottom Banners Overlay
                 def add_banners(frame):
@@ -151,4 +153,4 @@ if st.session_state.zip_data is not None:
         data=st.session_state.zip_data,
         file_name="clips.zip",
         mime="application/zip"
-                        )
+)
