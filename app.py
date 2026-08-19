@@ -32,10 +32,10 @@ if uploaded_file is not None:
 
                 subclip = clip.subclip(i, end_time)
 
-                # Auto Zoom
-w, h = subclip.size
-subclip = vfx.crop(subclip, x1=int(w*0.05), y1=int(h*0.05), x2=int(w*0.95), y2=int(h*0.95))
-subclip = vfx.resize(subclip, (w, h))
+                # Auto Zoom (Fixed Syntax)
+                w, h = subclip.size
+                subclip = vfx.crop(subclip, x1=int(w*0.05), y1=int(h*0.05), x2=int(w*0.95), y2=int(h*0.95))
+                subclip = vfx.resize(subclip, (w, h))
 
                 # Color Change
                 subclip = subclip.fx(vfx.colorx, 1.15)
