@@ -1,6 +1,12 @@
 import os
 import zipfile
 import streamlit as st
+import PIL.Image
+
+# Pillow 10+ compatibility fix for MoviePy
+if not hasattr(PIL.Image, 'ANTIALIAS'):
+    PIL.Image.ANTIALIAS = PIL.Image.LANCZOS
+
 from moviepy.video.io.VideoFileClip import VideoFileClip
 import moviepy.video.fx.all as vfx
 
@@ -32,7 +38,7 @@ if uploaded_file is not None:
 
                 subclip = clip.subclip(i, end_time)
 
-                # Auto Zoom (Fixed Syntax)
+                # Auto Zoom
                 w, h = subclip.size
                 subclip = vfx.crop(subclip, x1=int(w*0.05), y1=int(h*0.05), x2=int(w*0.95), y2=int(h*0.95))
                 subclip = vfx.resize(subclip, (w, h))
