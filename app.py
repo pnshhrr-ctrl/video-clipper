@@ -27,9 +27,10 @@ if st.button("Process & Cut Video"):
             'overwrites': True,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'web']
+                    'player_client': ['mweb', 'tv', 'web']
                 }
-            }
+            },
+            'nocheckcertificate': True
             }
             with YoutubeDL(ydl_opts) as ydl:
                 ydl.download([video_url])
