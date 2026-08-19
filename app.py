@@ -22,9 +22,14 @@ if st.button("Process & Cut Video"):
             
             # ১. ইউটিউব ভিডিও ডাউনলোড (yt-dlp)
             ydl_opts = {
-                'format': 'best',
-                'outtmpl': 'input_video.mp4',
-                'overwrites': True
+            'format': 'best',
+            'outtmpl': 'input_video.mp4',
+            'overwrites': True,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'web']
+                }
+            }
             }
             with YoutubeDL(ydl_opts) as ydl:
                 ydl.download([video_url])
