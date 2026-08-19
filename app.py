@@ -1,83 +1,51 @@
 import os
 import zipfile
 import streamlit as st
-from yt_dlp import YoutubeDL
 from moviepy.video.io.VideoFileClip import VideoFileClip
 import moviepy.video.fx.all as vfx
 
-# অ্যাপের টাইটেল ও ইন্টারফেস
 st.set_page_config(page_title="Auto Video Clipper & Editor", layout="centered")
 st.title("🎬 Auto Video Clipper & Transformer")
-st.write("YouTube লিঙ্ক দিন, অটোমেটিক ১০ সেকেন্ডের এডিটেড ক্লিপস তৈরি হয়ে যাবে!")
+st.write("আপনার ভিডিও ফাইলটি আপলোড করুন, অটোমেটিক ১০ সেকেন্ডের এডিটেড ক্লিপস তৈরি হয়ে যাবে!")
 
-# লিঙ্ক ইনপুট
-video_url = st.text_input("YouTube Video URL এখানে পেস্ট করুন:")
+uploaded_file = st.file_uploader("ভিডিও ফাইল সিলেক্ট করুন (MP4)", type=["mp4"])
 
-if st.button("Process & Cut Video"):
-    if not video_url:
-        st.warning("মেহেরবানি করে একটি লিঙ্ক দিন!")
-    else:
+if uploaded_file is not None:
+    if st.button("Process & Cut Video"):
         try:
-            st.info("১. ভিডিও ডাউনলোড হচ্ছে...")
-            
-            # ১. ইউটিউব ভিডিও ডাউনলোড (yt-dlp)
-            ydl_opts = {
-            'format': 'best',
-            'outtmpl': 'input_video.mp4',
-            'overwrites': True,
-            'user_agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['ios', 'mweb']
-                }
-            },
-            'nocheckcertificate': True
-            }
-            with YoutubeDL(ydl_opts) as ydl:
-                ydl.download([video_url])
+            st.info("১. ভিডিও ফাইল প্রসেস করা হচ্ছে...")
+            with open("input_video.mp4", "wb") as f:
+                f.write(uploaded_file.read())
 
-            st.success("ডাউনলোড সম্পন্ন! এডিটিং শুরু হচ্ছে...")
             st.info("২. ১০ সেকেন্ডের ক্লিপ কাটা এবং ইফেক্ট যুক্ত করা হচ্ছে...")
-
-            # ভিডিও লোড করা
             clip = VideoFileClip("input_video.mp4")
             duration = int(clip.duration)
 
-            # আউটপুট ফোল্ডার তৈরি
             output_dir = "output_clips"
             os.makedirs(output_dir, exist_ok=True)
-            
             clip_files = []
 
-            # ২. ১০ সেকেন্ড পর পর কেটে ইফেক্ট যোগ করা
             for i in range(0, duration, 10):
                 end_time = min(i + 10, duration)
-                if end_time - i < 3: # ৩ সেকেন্ডের কম হলে শেষ ক্লিপ স্কিপ করবে
+                if end_time - i < 3:
                     continue
 
                 subclip = clip.subclip(i, end_time)
 
-                # --- AUTO EDITING EFFECTS ---
-                # A. Auto Zoom (১০% ক্রপ করে জুম)
+                # Auto Zoom
                 w, h = subclip.size
                 subclip = subclip.crop(x1=w*0.05, y1=h*0.05, x2=w*0.95, y2=h*0.95).resize((w, h))
 
-                # B. Color Change (ব্রাইটনেস সাময়িক বৃদ্ধি)
-                subclip = subclip.fx(vfx.colorx, 1.15) 
+                # Color Change
+                subclip = subclip.fx(vfx.colorx, 1.15)
 
-                # C. Tone Shift (ভয়েস ভারী করা - Speed/Pitch সামঞ্জস্য)
-                if subclip.audio is not None:
-                    subclip = subclip.fx(vfx.speedx, 0.93) # গতি সামান্য কমালে টোন ভারী শোনায়
-
-                # ফাইল সেভ
                 clip_filename = os.path.join(output_dir, f"clip_{i//10 + 1}.mp4")
                 subclip.write_videofile(clip_filename, codec="libx264", audio_codec="aac", logger=None)
                 clip_files.append(clip_filename)
 
-            # মূল ভিডিও অবজেক্ট বন্ধ করা
             clip.close()
 
-            # ৩. সব ক্লিপ ZIP ফাইলে রূপান্তর
+            # Zip File
             zip_filename = "all_clips.zip"
             with zipfile.ZipFile(zip_filename, 'w') as zipf:
                 for file in clip_files:
@@ -85,14 +53,8 @@ if st.button("Process & Cut Video"):
 
             st.success("সব ক্লিপ তৈরি সম্পন্ন!")
 
-            # ৪. ডাউনলোড বাটন প্রদান
             with open(zip_filename, "rb") as f:
-                st.download_button(
-                    label="📦 Download All Clips (ZIP)",
-                    data=f,
-                    file_name="edited_clips.zip",
-                    mime="application/zip"
-                )
+                st.download_button("Download All Clips (ZIP)", f, file_name="clips.zip")
 
         except Exception as e:
-            st.error(f"একটি সমস্যা হয়েছে: {str(e)}")
+            st.error(f"একটি সমস্যা হয়েছে: {e}")
