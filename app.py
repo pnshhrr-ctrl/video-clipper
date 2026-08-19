@@ -2,7 +2,8 @@ import os
 import zipfile
 import streamlit as st
 from yt_dlp import YoutubeDL
-from moviepy.editor import VideoFileClip, vfx, afx
+from moviepy.video.io.VideoFileClip import VideoFileClip
+import moviepy.video.fx.all as vfx
 
 # অ্যাপের টাইটেল ও ইন্টারফেস
 st.set_page_config(page_title="Auto Video Clipper & Editor", layout="centered")
