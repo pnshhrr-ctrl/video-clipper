@@ -32,13 +32,11 @@ def get_font(size=40):
     except Exception:
         return ImageFont.load_default()
 
-# Safe MoviePy Subclip Wrapper
 def safe_subclip(clip, start, end):
     if hasattr(clip, 'subclipped'):
         return clip.subclipped(start, end)
     return clip.subclip(start, end)
 
-# Safe MoviePy Speed Wrapper
 def safe_speedup(clip, factor=1.05):
     try:
         if hasattr(clip, 'speedx'):
@@ -53,7 +51,6 @@ def safe_speedup(clip, factor=1.05):
         pass
     return clip
 
-# Safe MoviePy Frame Transform Wrapper
 def apply_frame_transform(clip, transform_fn):
     if hasattr(clip, 'fl_image'):
         return clip.fl_image(transform_fn)
@@ -72,6 +69,9 @@ uploaded_file = st.file_uploader("ভিডিও ফাইল (MP4)", type=["mp
 header_text = st.text_input("উপরে ক্যাপশন:", value="শেষের অংশটা মিস করবেন না!")
 watermark_text = st.text_input("ওয়াটারমার্ক:", value="Follow for More @CineBongo")
 
+# Dynamically choose clip count (Default set to 2 for super fast processing)
+total_clips = st.slider("কতটি ক্লিপ তৈরি করতে চান?", min_value=1, max_value=10, value=2)
+
 remove_watermark = st.checkbox("অটো-ওয়াটারমার্ক/লোগো রিমুভ (Micro-Crop & Zoom)", value=True)
 
 if uploaded_file is not None:
@@ -87,8 +87,7 @@ if uploaded_file is not None:
             os.makedirs(output_dir, exist_ok=True)
             
             clip_len = 10
-            total_clips = 10
-            step = (duration - clip_len) / (total_clips - 1) if duration > clip_len else clip_len
+            step = (duration - clip_len) / (total_clips - 1) if (duration > clip_len and total_clips > 1) else clip_len
             
             target_w, target_h = 1080, 1920
             header_font = get_font(48)
@@ -100,12 +99,11 @@ if uploaded_file is not None:
                 subclip = safe_subclip(clip, start_t, end_t)
                 subclip = safe_speedup(subclip, 1.05)
 
-                # Pure PIL Frame Processing Pipeline (Version-Independent)
                 def process_frame(frame):
                     img = PIL.Image.fromarray(frame)
                     orig_w, orig_h = img.size
 
-                    # 1. Anti-Watermark Micro-Crop (4% Edges)
+                    # Anti-Watermark Micro-Crop (4% Edges)
                     if remove_watermark:
                         crop_x = int(orig_w * 0.04)
                         crop_y = int(orig_h * 0.04)
@@ -113,36 +111,34 @@ if uploaded_file is not None:
                     
                     w, h = img.size
 
-                    # 2. Cinematic Saturation Enhancement
+                    # Saturation Enhancement
                     img = ImageEnhance.Color(img).enhance(1.2)
 
-                    # 3. Canvas Creation (1080x1920 Vertical Canvas)
+                    # Canvas Creation
                     canvas = PIL.Image.new("RGB", (target_w, target_h), (0, 0, 0))
 
-                    # 4. DSLR Blur Background
+                    # DSLR Blur Background
                     bg_ratio = target_h / float(h)
                     bg_w = int(w * bg_ratio)
                     bg_img = img.resize((bg_w, target_h), LANCZOS_FILTER)
                     bg_img = bg_img.filter(ImageFilter.GaussianBlur(radius=15))
-                    bg_img = ImageEnhance.Brightness(bg_img).enhance(0.4) # Darken
+                    bg_img = ImageEnhance.Brightness(bg_img).enhance(0.4)
                     bg_x = (target_w - bg_w) // 2
                     canvas.paste(bg_img, (bg_x, 0))
 
-                    # 5. Centered Main Video (Foreground)
+                    # Centered Main Video
                     fg_ratio = target_w / float(w)
                     fg_h = int(h * fg_ratio)
                     fg_img = img.resize((target_w, fg_h), LANCZOS_FILTER)
                     fg_y = (target_h - fg_h) // 2
                     canvas.paste(fg_img, (0, fg_y))
 
-                    # 6. Top & Bottom Banner Overlay
+                    # Banners
                     draw = ImageDraw.Draw(canvas)
                     top_banner_h = int(target_h * 0.09)
                     bottom_banner_h = int(target_h * 0.06)
 
-                    # Top Banner (Yellow)
                     draw.rectangle([(0, 0), (target_w, top_banner_h)], fill=(255, 215, 0))
-                    # Bottom Banner (Black)
                     draw.rectangle([(0, target_h - bottom_banner_h), (target_w, target_h)], fill=(0, 0, 0))
 
                     # Top Caption Text
