@@ -61,7 +61,7 @@ def apply_frame_transform(clip, transform_fn):
 
 st.set_page_config(page_title="Pro Reels Clipper", layout="centered")
 st.title("🎬 Pro Anti-Copyright Reels Clipper")
-st.write("DSLR ব্লার ব্যাকগ্রাউন্ড, অটো-ওয়াটারমার্ক রিমুভার এবং সাইড ব্র্যান্ড লোগো সহ রিলস তৈরি করুন!")
+st.write("DSLR ব্লার ব্যাকগ্রাউন্ড, অটো-ওয়াটারমার্ক রিমুভার এবং কাস্টম সেটিংস সহ রিলস তৈরি করুন!")
 
 if "zip_data" not in st.session_state:
     st.session_state.zip_data = None
@@ -132,8 +132,8 @@ if uploaded_file is not None:
             
             target_w, target_h = 1080, 1920
             header_font = get_font(48)
-            watermark_font = get_font(32)
-            brand_font = get_font(38) # Size for Right Corner Blue Logo
+            watermark_font = get_font(34)
+            brand_font = get_font(36)
 
             for idx in range(total_clips):
                 # Manual Logic Calculations
@@ -192,13 +192,19 @@ if uploaded_file is not None:
                     fg_y = (target_h - fg_h) // 2
                     canvas.paste(fg_img, (0, fg_y))
 
-                    # Banners & Text
+                    # Banners & Safe Area Overlay
                     draw = ImageDraw.Draw(canvas)
                     top_banner_h = int(target_h * 0.09)
-                    bottom_banner_h = int(target_h * 0.06)
+                    
+                    # Bottom Banner Safe Space (Facebook Reels UI এর ওপর তুলে দেওয়া হয়েছে)
+                    bottom_banner_h = int(target_h * 0.08)
+                    bottom_banner_y_start = target_h - int(target_h * 0.22) # Reels UI এর ঠিক ওপরে স্থান দেওয়া হয়েছে
 
+                    # Top Banner
                     draw.rectangle([(0, 0), (target_w, top_banner_h)], fill=top_banner_rgb)
-                    draw.rectangle([(0, target_h - bottom_banner_h), (target_w, target_h)], fill=bottom_banner_rgb)
+                    
+                    # Bottom Banner (Floating Safe Zone)
+                    draw.rectangle([(0, bottom_banner_y_start), (target_w, bottom_banner_y_start + bottom_banner_h)], fill=bottom_banner_rgb)
 
                     # 1. Top Caption Text
                     if header_text.strip():
@@ -209,28 +215,28 @@ if uploaded_file is not None:
                         ty = (top_banner_h - text_h) // 2 - 5
                         draw.text((tx, ty), header_text, fill=(0, 0, 0), font=header_font)
 
-                    # 2. Bottom Banner Watermark Text
+                    # 2. Bottom Banner Watermark Text (Safe Safe Zone)
                     if watermark_text.strip():
                         bbox = draw.textbbox((0, 0), watermark_text, font=watermark_font)
                         text_w = bbox[2] - bbox[0]
                         text_h = bbox[3] - bbox[1]
                         tx = (target_w - text_w) // 2
-                        ty = target_h - bottom_banner_h + (bottom_banner_h - text_h) // 2 - 5
+                        ty = bottom_banner_y_start + (bottom_banner_h - text_h) // 2 - 2
                         draw.text((tx, ty), watermark_text, fill=(255, 255, 255), font=watermark_font)
 
-                    # 3. Floating Branded Logo on Bottom-Right Corner (Blue Color)
+                    # 3. Right Corner Blue Watermark (Directly inside Main Video)
                     if brand_logo_text.strip():
                         bbox = draw.textbbox((0, 0), brand_logo_text, font=brand_font)
                         logo_w = bbox[2] - bbox[0]
                         logo_h = bbox[3] - bbox[1]
                         
-                        # Position: Bottom Right corner, just above the bottom black banner
+                        # Positioned inside Main Video frame (Bottom-Right)
                         lx = target_w - logo_w - 40
-                        ly = fg_y + fg_h - logo_h - 30 
+                        ly = fg_y + fg_h - logo_h - 20
 
-                        # Draw Text Shadow (Black) for high visibility
+                        # Text Shadow
                         draw.text((lx + 2, ly + 2), brand_logo_text, fill=(0, 0, 0), font=brand_font)
-                        # Draw Main Logo Text (Electric / Bright Blue)
+                        # Electric Blue Text
                         draw.text((lx, ly), brand_logo_text, fill=(0, 210, 255), font=brand_font)
 
                     return np.array(canvas)
