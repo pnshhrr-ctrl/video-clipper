@@ -13,7 +13,6 @@ if not hasattr(PIL.Image, 'ANTIALIAS'):
 
 from moviepy.video.io.VideoFileClip import VideoFileClip
 import moviepy.video.fx.all as vfx
-import moviepy.audio.fx.all as afx
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 
 FONT_FILE = "BanglaFont.ttf"
@@ -33,8 +32,22 @@ def get_font(size=40):
     except Exception:
         return ImageFont.load_default()
 
-def clean_text(text):
-    return re.sub(r'[^\w\s\u0980-\u09FF\.,!\?\-@#]', '', text)
+# Cross-version compatibility helpers for MoviePy
+def resize_clip(clip, **kwargs):
+    if hasattr(clip, 'resized'):
+        return clip.resized(**kwargs)
+    elif hasattr(clip, 'resize'):
+        return clip.resize(**kwargs)
+    return clip.fx(vfx.resize, **kwargs)
+
+def crop_clip(clip, x1, y1, x2, y2):
+    if hasattr(vfx, 'crop'):
+        return vfx.crop(clip, x1=x1, y1=y1, x2=x2, y2=y2)
+    elif hasattr(clip, 'cropped'):
+        return clip.cropped(x1=x1, y1=y1, x2=x2, y2=y2)
+    elif hasattr(clip, 'crop'):
+        return clip.crop(x1=x1, y1=y1, x2=x2, y2=y2)
+    return clip
 
 st.set_page_config(page_title="Pro Reels Clipper", layout="centered")
 st.title("🎬 Pro Anti-Copyright Reels Clipper")
@@ -47,7 +60,6 @@ uploaded_file = st.file_uploader("ভিডিও ফাইল (MP4)", type=["mp
 header_text = st.text_input("উপরে ক্যাপশন:", value="শেষের অংশটা মিস করবেন না!")
 watermark_text = st.text_input("ওয়াটারমার্ক:", value="Follow for More @CineBongo")
 
-# Watermark Removal Setting
 remove_watermark = st.checkbox("অটো-ওয়াটারমার্ক/লোগো রিমুভ (Micro-Crop & Zoom)", value=True)
 
 if uploaded_file is not None:
@@ -62,14 +74,12 @@ if uploaded_file is not None:
             output_dir = "output_clips"
             os.makedirs(output_dir, exist_ok=True)
             
-            # Exactly 10 Clips Logic
             clip_len = 10
             total_clips = 10
             step = (duration - clip_len) / (total_clips - 1) if duration > clip_len else clip_len
             
             target_w, target_h = 1080, 1920
 
-            # Load Fonts
             header_font = get_font(48)
             watermark_font = get_font(32)
 
@@ -82,19 +92,19 @@ if uploaded_file is not None:
                     w, h = subclip.size
                     crop_x = int(w * 0.04)
                     crop_y = int(h * 0.04)
-                    subclip = vfx.crop(subclip, x1=crop_x, y1=crop_y, x2=w-crop_x, y2=h-crop_y)
+                    subclip = crop_clip(subclip, x1=crop_x, y1=crop_y, x2=w-crop_x, y2=h-crop_y)
 
                 # 1. Cinematic Look (Speed + Color + Saturation)
                 subclip = vfx.speedx(subclip, factor=1.05)
                 subclip = subclip.fx(vfx.colorx, 1.2)
                 
                 # 2. DSLR Blur Background
-                bg_clip = subclip.resize(height=target_h)
+                bg_clip = resize_clip(subclip, height=target_h)
                 bg_clip = vfx.gaussian_blur(bg_clip, sigma=6)
                 bg_clip = bg_clip.fx(vfx.colorx, 0.4)
                 
                 # Center original clip
-                fg_clip = subclip.resize(width=target_w)
+                fg_clip = resize_clip(subclip, width=target_w)
                 final_subclip = CompositeVideoClip([bg_clip.set_position("center"), fg_clip.set_position("center")], size=(target_w, target_h))
 
                 # 3. Branding & Top/Bottom Overlay with Text
@@ -111,7 +121,7 @@ if uploaded_file is not None:
                     # Bottom Banner (Black)
                     draw.rectangle([(0, h - bottom_banner_h), (w, h)], fill=(0, 0, 0))
 
-                    # 1. Draw Top Header Text (Centered)
+                    # Top Header Text (Centered)
                     if header_text.strip():
                         bbox = draw.textbbox((0, 0), header_text, font=header_font)
                         text_w = bbox[2] - bbox[0]
@@ -120,7 +130,7 @@ if uploaded_file is not None:
                         y = (top_banner_h - text_h) // 2 - 5
                         draw.text((x, y), header_text, fill=(0, 0, 0), font=header_font)
 
-                    # 2. Draw Watermark Text (Centered at bottom)
+                    # Watermark Text (Centered at bottom)
                     if watermark_text.strip():
                         bbox = draw.textbbox((0, 0), watermark_text, font=watermark_font)
                         text_w = bbox[2] - bbox[0]
