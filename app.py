@@ -5,15 +5,15 @@ import requests
 import numpy as np
 import streamlit as st
 import PIL.Image
-from PIL import ImageDraw, ImageFont
+from PIL import ImageDraw, ImageFont, ImageFilter, ImageEnhance
 
-# Pillow 10+ compatibility fix
-if not hasattr(PIL.Image, 'ANTIALIAS'):
-    PIL.Image.ANTIALIAS = PIL.Image.LANCZOS
+# Pillow Resampling Fix
+try:
+    LANCZOS_FILTER = PIL.Image.Resampling.LANCZOS
+except AttributeError:
+    LANCZOS_FILTER = PIL.Image.LANCZOS
 
 from moviepy.video.io.VideoFileClip import VideoFileClip
-import moviepy.video.fx.all as vfx
-from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 
 FONT_FILE = "BanglaFont.ttf"
 
@@ -32,21 +32,33 @@ def get_font(size=40):
     except Exception:
         return ImageFont.load_default()
 
-# Cross-version compatibility helpers for MoviePy
-def resize_clip(clip, **kwargs):
-    if hasattr(clip, 'resized'):
-        return clip.resized(**kwargs)
-    elif hasattr(clip, 'resize'):
-        return clip.resize(**kwargs)
-    return clip.fx(vfx.resize, **kwargs)
+# Safe MoviePy Subclip Wrapper
+def safe_subclip(clip, start, end):
+    if hasattr(clip, 'subclipped'):
+        return clip.subclipped(start, end)
+    return clip.subclip(start, end)
 
-def crop_clip(clip, x1, y1, x2, y2):
-    if hasattr(vfx, 'crop'):
-        return vfx.crop(clip, x1=x1, y1=y1, x2=x2, y2=y2)
-    elif hasattr(clip, 'cropped'):
-        return clip.cropped(x1=x1, y1=y1, x2=x2, y2=y2)
-    elif hasattr(clip, 'crop'):
-        return clip.crop(x1=x1, y1=y1, x2=x2, y2=y2)
+# Safe MoviePy Speed Wrapper
+def safe_speedup(clip, factor=1.05):
+    try:
+        if hasattr(clip, 'speedx'):
+            return clip.speedx(factor)
+        elif hasattr(clip, 'with_effects'):
+            import moviepy.video.fx.all as vfx
+            if hasattr(vfx, 'MultiplySpeed'):
+                return clip.with_effects([vfx.MultiplySpeed(factor)])
+            elif hasattr(vfx, 'speedx'):
+                return clip.fx(vfx.speedx, factor)
+    except Exception:
+        pass
+    return clip
+
+# Safe MoviePy Frame Transform Wrapper
+def apply_frame_transform(clip, transform_fn):
+    if hasattr(clip, 'fl_image'):
+        return clip.fl_image(transform_fn)
+    elif hasattr(clip, 'image_transform'):
+        return clip.image_transform(transform_fn)
     return clip
 
 st.set_page_config(page_title="Pro Reels Clipper", layout="centered")
@@ -79,74 +91,86 @@ if uploaded_file is not None:
             step = (duration - clip_len) / (total_clips - 1) if duration > clip_len else clip_len
             
             target_w, target_h = 1080, 1920
-
             header_font = get_font(48)
             watermark_font = get_font(32)
 
             for idx in range(total_clips):
                 start_t = idx * step
-                subclip = clip.subclip(start_t, min(start_t + clip_len, duration))
+                end_t = min(start_t + clip_len, duration)
+                subclip = safe_subclip(clip, start_t, end_t)
+                subclip = safe_speedup(subclip, 1.05)
 
-                # AUTO WATERMARK REMOVAL (Crop 4% borders)
-                if remove_watermark:
-                    w, h = subclip.size
-                    crop_x = int(w * 0.04)
-                    crop_y = int(h * 0.04)
-                    subclip = crop_clip(subclip, x1=crop_x, y1=crop_y, x2=w-crop_x, y2=h-crop_y)
-
-                # 1. Cinematic Look (Speed + Color + Saturation)
-                subclip = vfx.speedx(subclip, factor=1.05)
-                subclip = subclip.fx(vfx.colorx, 1.2)
-                
-                # 2. DSLR Blur Background
-                bg_clip = resize_clip(subclip, height=target_h)
-                bg_clip = vfx.gaussian_blur(bg_clip, sigma=6)
-                bg_clip = bg_clip.fx(vfx.colorx, 0.4)
-                
-                # Center original clip
-                fg_clip = resize_clip(subclip, width=target_w)
-                final_subclip = CompositeVideoClip([bg_clip.set_position("center"), fg_clip.set_position("center")], size=(target_w, target_h))
-
-                # 3. Branding & Top/Bottom Overlay with Text
-                def add_banners_and_text(frame):
+                # Pure PIL Frame Processing Pipeline (Version-Independent)
+                def process_frame(frame):
                     img = PIL.Image.fromarray(frame)
-                    draw = ImageDraw.Draw(img)
-                    w, h = img.size
+                    orig_w, orig_h = img.size
+
+                    # 1. Anti-Watermark Micro-Crop (4% Edges)
+                    if remove_watermark:
+                        crop_x = int(orig_w * 0.04)
+                        crop_y = int(orig_h * 0.04)
+                        img = img.crop((crop_x, crop_y, orig_w - crop_x, orig_h - crop_y))
                     
-                    top_banner_h = int(h * 0.09)
-                    bottom_banner_h = int(h * 0.06)
+                    w, h = img.size
+
+                    # 2. Cinematic Saturation Enhancement
+                    img = ImageEnhance.Color(img).enhance(1.2)
+
+                    # 3. Canvas Creation (1080x1920 Vertical Canvas)
+                    canvas = PIL.Image.new("RGB", (target_w, target_h), (0, 0, 0))
+
+                    # 4. DSLR Blur Background
+                    bg_ratio = target_h / float(h)
+                    bg_w = int(w * bg_ratio)
+                    bg_img = img.resize((bg_w, target_h), LANCZOS_FILTER)
+                    bg_img = bg_img.filter(ImageFilter.GaussianBlur(radius=15))
+                    bg_img = ImageEnhance.Brightness(bg_img).enhance(0.4) # Darken
+                    bg_x = (target_w - bg_w) // 2
+                    canvas.paste(bg_img, (bg_x, 0))
+
+                    # 5. Centered Main Video (Foreground)
+                    fg_ratio = target_w / float(w)
+                    fg_h = int(h * fg_ratio)
+                    fg_img = img.resize((target_w, fg_h), LANCZOS_FILTER)
+                    fg_y = (target_h - fg_h) // 2
+                    canvas.paste(fg_img, (0, fg_y))
+
+                    # 6. Top & Bottom Banner Overlay
+                    draw = ImageDraw.Draw(canvas)
+                    top_banner_h = int(target_h * 0.09)
+                    bottom_banner_h = int(target_h * 0.06)
 
                     # Top Banner (Yellow)
-                    draw.rectangle([(0, 0), (w, top_banner_h)], fill=(255, 215, 0))
+                    draw.rectangle([(0, 0), (target_w, top_banner_h)], fill=(255, 215, 0))
                     # Bottom Banner (Black)
-                    draw.rectangle([(0, h - bottom_banner_h), (w, h)], fill=(0, 0, 0))
+                    draw.rectangle([(0, target_h - bottom_banner_h), (target_w, target_h)], fill=(0, 0, 0))
 
-                    # Top Header Text (Centered)
+                    # Top Caption Text
                     if header_text.strip():
                         bbox = draw.textbbox((0, 0), header_text, font=header_font)
                         text_w = bbox[2] - bbox[0]
                         text_h = bbox[3] - bbox[1]
-                        x = (w - text_w) // 2
-                        y = (top_banner_h - text_h) // 2 - 5
-                        draw.text((x, y), header_text, fill=(0, 0, 0), font=header_font)
+                        tx = (target_w - text_w) // 2
+                        ty = (top_banner_h - text_h) // 2 - 5
+                        draw.text((tx, ty), header_text, fill=(0, 0, 0), font=header_font)
 
-                    # Watermark Text (Centered at bottom)
+                    # Bottom Watermark Text
                     if watermark_text.strip():
                         bbox = draw.textbbox((0, 0), watermark_text, font=watermark_font)
                         text_w = bbox[2] - bbox[0]
                         text_h = bbox[3] - bbox[1]
-                        x = (w - text_w) // 2
-                        y = h - bottom_banner_h + (bottom_banner_h - text_h) // 2 - 5
-                        draw.text((x, y), watermark_text, fill=(255, 255, 255), font=watermark_font)
+                        tx = (target_w - text_w) // 2
+                        ty = target_h - bottom_banner_h + (bottom_banner_h - text_h) // 2 - 5
+                        draw.text((tx, ty), watermark_text, fill=(255, 255, 255), font=watermark_font)
 
-                    return np.array(img)
+                    return np.array(canvas)
 
-                final_subclip = final_subclip.fl_image(add_banners_and_text)
+                final_subclip = apply_frame_transform(subclip, process_frame)
                 
                 path = os.path.join(output_dir, f"clip_{idx+1}.mp4")
                 final_subclip.write_videofile(path, codec="libx264", audio_codec="aac", logger=None)
 
-            # Zip and Finish
+            # Zip Output
             zip_filename = "pro_reels_output.zip"
             with zipfile.ZipFile(zip_filename, 'w') as zipf:
                 for root, dirs, files in os.walk(output_dir):
