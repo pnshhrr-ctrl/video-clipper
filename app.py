@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 import zipfile
 import requests
 import numpy as np
@@ -60,19 +61,37 @@ def apply_frame_transform(clip, transform_fn):
 
 st.set_page_config(page_title="Pro Reels Clipper", layout="centered")
 st.title("🎬 Pro Anti-Copyright Reels Clipper")
-st.write("DSLR ব্লার ব্যাকগ্রাউন্ড, অটো-ওয়াটারমার্ক রিমুভার এবং সিনেমাটিক টেক্সট সহ রিলস তৈরি করুন!")
+st.write("DSLR ব্লার ব্যাকগ্রাউন্ড, অটো-ওয়াটারমার্ক রিমুভার এবং কাস্টম এডিটিং অপশন সহ রিলস তৈরি করুন!")
 
 if "zip_data" not in st.session_state:
     st.session_state.zip_data = None
 
+# Input Fields
 uploaded_file = st.file_uploader("ভিডিও ফাইল (MP4)", type=["mp4"])
 header_text = st.text_input("উপরে ক্যাপশন:", value="শেষের অংশটা মিস করবেন না!")
 watermark_text = st.text_input("ওয়াটারমার্ক:", value="Follow for More @CineBongo")
 
-# Dynamically choose clip count (Default set to 2 for super fast processing)
-total_clips = st.slider("কতটি ক্লিপ তৈরি করতে চান?", min_value=1, max_value=10, value=2)
+# Advanced Customization Expandable Options for Users
+with st.expander("⚙️ Advanced Customization (কাস্টম সেটিংস)"):
+    total_clips = st.slider("ক্লিপের সংখ্যা:", min_value=1, max_value=10, value=2)
+    clip_len = st.slider("প্রতিটি ক্লিপের দৈর্ঘ্য (সেকেন্ড):", min_value=5, max_value=30, value=10)
+    blur_radius = st.slider("ব্যাকগ্রাউন্ড ব্লার মাত্রা:", min_value=5, max_value=30, value=15)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        top_color_picker = st.color_picker("উপরের ব্যানারের রঙ", "#FFD700") # Yellow
+    with col2:
+        bottom_color_picker = st.color_picker("নিচের ব্যানারের রঙ", "#000000") # Black
 
 remove_watermark = st.checkbox("অটো-ওয়াটারমার্ক/লোগো রিমুভ (Micro-Crop & Zoom)", value=True)
+
+# Convert HEX color to RGB tuple
+def hex_to_rgb(hex_code):
+    hex_code = hex_code.lstrip('#')
+    return tuple(int(hex_code[i:i+2], 16) for i in (0, 2, 4))
+
+top_banner_rgb = hex_to_rgb(top_color_picker)
+bottom_banner_rgb = hex_to_rgb(bottom_color_picker)
 
 if uploaded_file is not None:
     if st.button("Process Pro Reels"):
@@ -86,7 +105,6 @@ if uploaded_file is not None:
             output_dir = "output_clips"
             os.makedirs(output_dir, exist_ok=True)
             
-            clip_len = 10
             step = (duration - clip_len) / (total_clips - 1) if (duration > clip_len and total_clips > 1) else clip_len
             
             target_w, target_h = 1080, 1920
@@ -121,7 +139,7 @@ if uploaded_file is not None:
                     bg_ratio = target_h / float(h)
                     bg_w = int(w * bg_ratio)
                     bg_img = img.resize((bg_w, target_h), LANCZOS_FILTER)
-                    bg_img = bg_img.filter(ImageFilter.GaussianBlur(radius=15))
+                    bg_img = bg_img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
                     bg_img = ImageEnhance.Brightness(bg_img).enhance(0.4)
                     bg_x = (target_w - bg_w) // 2
                     canvas.paste(bg_img, (bg_x, 0))
@@ -133,13 +151,13 @@ if uploaded_file is not None:
                     fg_y = (target_h - fg_h) // 2
                     canvas.paste(fg_img, (0, fg_y))
 
-                    # Banners
+                    # Banners & Text Overlay
                     draw = ImageDraw.Draw(canvas)
                     top_banner_h = int(target_h * 0.09)
                     bottom_banner_h = int(target_h * 0.06)
 
-                    draw.rectangle([(0, 0), (target_w, top_banner_h)], fill=(255, 215, 0))
-                    draw.rectangle([(0, target_h - bottom_banner_h), (target_w, target_h)], fill=(0, 0, 0))
+                    draw.rectangle([(0, 0), (target_w, top_banner_h)], fill=top_banner_rgb)
+                    draw.rectangle([(0, target_h - bottom_banner_h), (target_w, target_h)], fill=bottom_banner_rgb)
 
                     # Top Caption Text
                     if header_text.strip():
@@ -178,6 +196,13 @@ if uploaded_file is not None:
 
             st.success("প্রো-লেভেল রিলস তৈরি সম্পন্ন!")
             st.download_button("📥 Download All Clips (ZIP)", data=st.session_state.zip_data, file_name="pro_reels.zip", mime="application/zip")
+
+            # স্টোরেজ খালি করার কোড (ডাউনলোড বাটন রেন্ডার হওয়ার পর ফাইল রিমুভ)
+            if os.path.exists("input_video.mp4"):
+                os.remove("input_video.mp4")
+
+            if os.path.exists("output_clips"):
+                shutil.rmtree("output_clips")
 
         except Exception as e:
             st.error(f"Error: {e}")
