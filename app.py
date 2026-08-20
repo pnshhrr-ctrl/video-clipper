@@ -61,7 +61,7 @@ def apply_frame_transform(clip, transform_fn):
 
 st.set_page_config(page_title="Pro Reels Clipper", layout="centered")
 st.title("🎬 Pro Anti-Copyright Reels Clipper")
-st.write("DSLR ব্লার ব্যাকগ্রাউন্ড, অটো-ওয়াটারমার্ক রিমুভার এবং কাস্টম কাটিং মোড সহ রিলস তৈরি করুন!")
+st.write("DSLR ব্লার ব্যাকগ্রাউন্ড, অটো-ওয়াটারমার্ক রিমুভার এবং সাইড ব্র্যান্ড লোগো সহ রিলস তৈরি করুন!")
 
 if "zip_data" not in st.session_state:
     st.session_state.zip_data = None
@@ -69,23 +69,39 @@ if "zip_data" not in st.session_state:
 # Input Fields
 uploaded_file = st.file_uploader("ভিডিও ফাইল (MP4)", type=["mp4"])
 header_text = st.text_input("উপরে ক্যাপশন:", value="শেষের অংশটা মিস করবেন না!")
-watermark_text = st.text_input("ওয়াটারমার্ক:", value="Follow for More @CineBongo")
+watermark_text = st.text_input("নিচের ব্যানারের ওয়াটারমার্ক:", value="Follow for More @CineBongo")
+brand_logo_text = st.text_input("ডানপাশের নীল রঙের লোগো টেক্সট:", value="CineBongo")
 
-# Video Cutting Mode Selection
-clip_mode = st.radio(
-    "ভিডিও কাটার মোড সিলেক্ট করুন:",
-    ["মাঝের অংশ থেকে (Middle Body)", "ম্যানুয়াল টাইম (Manual Start)", "সমান ব্যবধানে (Equal Interval)"]
+# --- MANUAL SELECTION OPTIONS ---
+st.subheader("🎯 ভিডিও কাটিং মোড (Manual Mode Selection)")
+clip_mode = st.selectbox(
+    "আপনার পছন্দমতো কাটিং অপশন বেছে নিন:",
+    [
+        "১. মাঝের অংশ থেকে (Middle Body - Auto Cut)",
+        "২. কাস্টম টাইম ফ্রেম (Specific Start & End Minutes)",
+        "৩. নির্দিষ্ট মিনিট থেকে শুরু (Manual Start Minute)",
+        "৪. পুরো ভিডিও থেকে সমান ব্যবধানে (Equal Interval)"
+    ]
 )
 
 manual_start_min = 0.0
-if clip_mode == "ম্যানুয়াল টাইম (Manual Start)":
-    manual_start_min = st.number_input("কয় মিনিট থেকে ক্লিপ তৈরি শুরু হবে? (Minute):", min_value=0.0, value=1.0, step=0.5)
+manual_end_min = 0.0
 
-# Advanced Customization
-with st.expander("⚙️ Advanced Customization (কাস্টম সেটিংস)"):
-    total_clips = st.slider("ক্লিপের সংখ্যা:", min_value=1, max_value=10, value=2)
-    clip_len = st.slider("প্রতিটি ক্লিপের দৈর্ঘ্য (সেকেন্ড):", min_value=5, max_value=30, value=10)
-    blur_radius = st.slider("ব্যাকগ্রাউন্ড ব্লার মাত্রা:", min_value=5, max_value=30, value=15)
+if "২. কাস্টম টাইম ফ্রেম" in clip_mode:
+    col_time1, col_time2 = st.columns(2)
+    with col_time1:
+        manual_start_min = st.number_input("কয় মিনিট থেকে শুরু হবে? (Start Min):", min_value=0.0, value=1.0, step=0.5)
+    with col_time2:
+        manual_end_min = st.number_input("কয় মিনিটে শেষ হবে? (End Min):", min_value=0.5, value=3.0, step=0.5)
+
+elif "৩. নির্দিষ্ট মিনিট থেকে শুরু" in clip_mode:
+    manual_start_min = st.number_input("কয় মিনিট থেকে ক্লিপ নেওয়া শুরু হবে? (Minute):", min_value=0.0, value=1.0, step=0.5)
+
+# Advanced Customization Expandable Options
+with st.expander("⚙️ কাস্টম সেটিংস (Clips, Colors & Blur)"):
+    total_clips = st.slider("ক্লিপের সংখ্যা (Total Clips):", min_value=1, max_value=10, value=2)
+    clip_len = st.slider("প্রতিটি ক্লিপের দৈর্ঘ্য (Seconds):", min_value=5, max_value=30, value=10)
+    blur_radius = st.slider("ব্যাকগ্রাউন্ড ব্লার মাত্রা (Blur Amount):", min_value=5, max_value=30, value=15)
     
     col1, col2 = st.columns(2)
     with col1:
@@ -117,18 +133,28 @@ if uploaded_file is not None:
             target_w, target_h = 1080, 1920
             header_font = get_font(48)
             watermark_font = get_font(32)
+            brand_font = get_font(38) # Size for Right Corner Blue Logo
 
             for idx in range(total_clips):
-                # Calculate Start Time based on selected mode
-                if clip_mode == "মাঝের অংশ থেকে (Middle Body)":
-                    intro_margin = duration * 0.15 # Skip 15% Intro
-                    usable_duration = duration * 0.70 # Use 70% middle duration
+                # Manual Logic Calculations
+                if "১. মাঝের অংশ থেকে" in clip_mode:
+                    intro_margin = duration * 0.15
+                    usable_duration = duration * 0.70
                     step = (usable_duration - clip_len) / (total_clips - 1) if (usable_duration > clip_len and total_clips > 1) else 0
                     start_t = intro_margin + (idx * step)
-                elif clip_mode == "ম্যানুয়াল টাইম (Manual Start)":
+
+                elif "২. কাস্টম টাইম ফ্রেম" in clip_mode:
+                    start_sec = manual_start_min * 60
+                    end_sec = min(manual_end_min * 60, duration)
+                    time_range = max(end_sec - start_sec, clip_len)
+                    step = (time_range - clip_len) / (total_clips - 1) if (time_range > clip_len and total_clips > 1) else 0
+                    start_t = start_sec + (idx * step)
+
+                elif "৩. নির্দিষ্ট মিনিট থেকে শুরু" in clip_mode:
                     base_start = manual_start_min * 60
                     start_t = base_start + (idx * clip_len)
-                else: # Equal Interval
+
+                else: # ৪. সমান ব্যবধানে
                     step = (duration - clip_len) / (total_clips - 1) if (duration > clip_len and total_clips > 1) else clip_len
                     start_t = idx * step
 
@@ -150,7 +176,7 @@ if uploaded_file is not None:
 
                     canvas = PIL.Image.new("RGB", (target_w, target_h), (0, 0, 0))
 
-                    # Background Blur
+                    # DSLR Blur Background
                     bg_ratio = target_h / float(h)
                     bg_w = int(w * bg_ratio)
                     bg_img = img.resize((bg_w, target_h), LANCZOS_FILTER)
@@ -159,14 +185,14 @@ if uploaded_file is not None:
                     bg_x = (target_w - bg_w) // 2
                     canvas.paste(bg_img, (bg_x, 0))
 
-                    # Foreground Main Clip
+                    # Centered Main Clip
                     fg_ratio = target_w / float(w)
                     fg_h = int(h * fg_ratio)
                     fg_img = img.resize((target_w, fg_h), LANCZOS_FILTER)
                     fg_y = (target_h - fg_h) // 2
                     canvas.paste(fg_img, (0, fg_y))
 
-                    # Banners
+                    # Banners & Text
                     draw = ImageDraw.Draw(canvas)
                     top_banner_h = int(target_h * 0.09)
                     bottom_banner_h = int(target_h * 0.06)
@@ -174,7 +200,7 @@ if uploaded_file is not None:
                     draw.rectangle([(0, 0), (target_w, top_banner_h)], fill=top_banner_rgb)
                     draw.rectangle([(0, target_h - bottom_banner_h), (target_w, target_h)], fill=bottom_banner_rgb)
 
-                    # Top Caption Text
+                    # 1. Top Caption Text
                     if header_text.strip():
                         bbox = draw.textbbox((0, 0), header_text, font=header_font)
                         text_w = bbox[2] - bbox[0]
@@ -183,7 +209,7 @@ if uploaded_file is not None:
                         ty = (top_banner_h - text_h) // 2 - 5
                         draw.text((tx, ty), header_text, fill=(0, 0, 0), font=header_font)
 
-                    # Bottom Watermark Text
+                    # 2. Bottom Banner Watermark Text
                     if watermark_text.strip():
                         bbox = draw.textbbox((0, 0), watermark_text, font=watermark_font)
                         text_w = bbox[2] - bbox[0]
@@ -191,6 +217,21 @@ if uploaded_file is not None:
                         tx = (target_w - text_w) // 2
                         ty = target_h - bottom_banner_h + (bottom_banner_h - text_h) // 2 - 5
                         draw.text((tx, ty), watermark_text, fill=(255, 255, 255), font=watermark_font)
+
+                    # 3. Floating Branded Logo on Bottom-Right Corner (Blue Color)
+                    if brand_logo_text.strip():
+                        bbox = draw.textbbox((0, 0), brand_logo_text, font=brand_font)
+                        logo_w = bbox[2] - bbox[0]
+                        logo_h = bbox[3] - bbox[1]
+                        
+                        # Position: Bottom Right corner, just above the bottom black banner
+                        lx = target_w - logo_w - 40
+                        ly = fg_y + fg_h - logo_h - 30 
+
+                        # Draw Text Shadow (Black) for high visibility
+                        draw.text((lx + 2, ly + 2), brand_logo_text, fill=(0, 0, 0), font=brand_font)
+                        # Draw Main Logo Text (Electric / Bright Blue)
+                        draw.text((lx, ly), brand_logo_text, fill=(0, 210, 255), font=brand_font)
 
                     return np.array(canvas)
 
