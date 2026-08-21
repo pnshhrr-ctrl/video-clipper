@@ -61,7 +61,7 @@ def apply_frame_transform(clip, transform_fn):
 
 st.set_page_config(page_title="Pro Reels Clipper", layout="centered")
 st.title("🎬 Pro Anti-Copyright Reels Clipper")
-st.write("DSLR ব্লার ব্যাকগ্রাউন্ড, অটো-ওয়াটারমার্ক রিমুভার এবং কাস্টম সেটিংস সহ রিলস তৈরি করুন!")
+st.write("DSLR ব্লার ব্যাকগ্রাউন্ড, অটো-ওয়াটারমার্ক রিমুভার এবং পারফেক্ট লেআউট সহ রিলস তৈরি করুন!")
 
 if "zip_data" not in st.session_state:
     st.session_state.zip_data = None
@@ -105,9 +105,9 @@ with st.expander("⚙️ কাস্টম সেটিংস (Clips, Colors & 
     
     col1, col2 = st.columns(2)
     with col1:
-        top_color_picker = st.color_picker("উপরের ব্যানারের রঙ", "#FFD700")
+        top_color_picker = st.color_picker("উপরের ব্যানারের রঙ", "#006400") # Default Green
     with col2:
-        bottom_color_picker = st.color_picker("নিচের ব্যানারের রঙ", "#000000")
+        bottom_color_picker = st.color_picker("নিচের ব্যানারের রঙ", "#FF2400") # Default Red
 
 remove_watermark = st.checkbox("অটো-ওয়াটারমার্ক/লোগো রিমুভ (Micro-Crop & Zoom)", value=True)
 
@@ -131,12 +131,11 @@ if uploaded_file is not None:
             os.makedirs(output_dir, exist_ok=True)
             
             target_w, target_h = 1080, 1920
-            header_font = get_font(48)
-            watermark_font = get_font(34)
-            brand_font = get_font(36)
+            header_font = get_font(46)
+            watermark_font = get_font(36)
+            brand_font = get_font(38)
 
             for idx in range(total_clips):
-                # Manual Logic Calculations
                 if "১. মাঝের অংশ থেকে" in clip_mode:
                     intro_margin = duration * 0.15
                     usable_duration = duration * 0.70
@@ -154,7 +153,7 @@ if uploaded_file is not None:
                     base_start = manual_start_min * 60
                     start_t = base_start + (idx * clip_len)
 
-                else: # ৪. সমান ব্যবধানে
+                else:
                     step = (duration - clip_len) / (total_clips - 1) if (duration > clip_len and total_clips > 1) else clip_len
                     start_t = idx * step
 
@@ -192,51 +191,47 @@ if uploaded_file is not None:
                     fg_y = (target_h - fg_h) // 2
                     canvas.paste(fg_img, (0, fg_y))
 
-                    # Banners & Safe Area Overlay
+                    # Banners Layout
                     draw = ImageDraw.Draw(canvas)
+                    
+                    # Top Banner (9% Height)
                     top_banner_h = int(target_h * 0.09)
-                    
-                    # Bottom Banner Safe Space (Facebook Reels UI এর ওপর তুলে দেওয়া হয়েছে)
-                    bottom_banner_h = int(target_h * 0.08)
-                    bottom_banner_y_start = target_h - int(target_h * 0.22) # Reels UI এর ঠিক ওপরে স্থান দেওয়া হয়েছে
-
-                    # Top Banner
                     draw.rectangle([(0, 0), (target_w, top_banner_h)], fill=top_banner_rgb)
-                    
-                    # Bottom Banner (Floating Safe Zone)
-                    draw.rectangle([(0, bottom_banner_y_start), (target_w, bottom_banner_y_start + bottom_banner_h)], fill=bottom_banner_rgb)
 
-                    # 1. Top Caption Text
+                    # Bottom Banner Attached to Frame Bottom (10% Height for UI Clearance)
+                    bottom_banner_h = int(target_h * 0.10)
+                    bottom_banner_y = target_h - bottom_banner_h
+                    draw.rectangle([(0, bottom_banner_y), (target_w, target_h)], fill=bottom_banner_rgb)
+
+                    # Top Caption Text
                     if header_text.strip():
                         bbox = draw.textbbox((0, 0), header_text, font=header_font)
                         text_w = bbox[2] - bbox[0]
                         text_h = bbox[3] - bbox[1]
                         tx = (target_w - text_w) // 2
-                        ty = (top_banner_h - text_h) // 2 - 5
-                        draw.text((tx, ty), header_text, fill=(0, 0, 0), font=header_font)
+                        ty = (top_banner_h - text_h) // 2 - 4
+                        draw.text((tx, ty), header_text, fill=(255, 255, 255) if top_banner_rgb[0] < 128 else (0, 0, 0), font=header_font)
 
-                    # 2. Bottom Banner Watermark Text (Safe Safe Zone)
+                    # Bottom Banner Text (Centered with Top Padding for Reels Player UI)
                     if watermark_text.strip():
                         bbox = draw.textbbox((0, 0), watermark_text, font=watermark_font)
                         text_w = bbox[2] - bbox[0]
                         text_h = bbox[3] - bbox[1]
                         tx = (target_w - text_w) // 2
-                        ty = bottom_banner_y_start + (bottom_banner_h - text_h) // 2 - 2
+                        # Upper alignment inside the banner to stay clear of bottom Android navigation bar
+                        ty = bottom_banner_y + 25 
                         draw.text((tx, ty), watermark_text, fill=(255, 255, 255), font=watermark_font)
 
-                    # 3. Right Corner Blue Watermark (Directly inside Main Video)
+                    # Floating Watermark on Main Video Bottom-Right
                     if brand_logo_text.strip():
                         bbox = draw.textbbox((0, 0), brand_logo_text, font=brand_font)
                         logo_w = bbox[2] - bbox[0]
                         logo_h = bbox[3] - bbox[1]
                         
-                        # Positioned inside Main Video frame (Bottom-Right)
-                        lx = target_w - logo_w - 40
-                        ly = fg_y + fg_h - logo_h - 20
+                        lx = target_w - logo_w - 35
+                        ly = fg_y + fg_h - logo_h - 15
 
-                        # Text Shadow
                         draw.text((lx + 2, ly + 2), brand_logo_text, fill=(0, 0, 0), font=brand_font)
-                        # Electric Blue Text
                         draw.text((lx, ly), brand_logo_text, fill=(0, 210, 255), font=brand_font)
 
                     return np.array(canvas)
@@ -246,7 +241,6 @@ if uploaded_file is not None:
                 path = os.path.join(output_dir, f"clip_{idx+1}.mp4")
                 final_subclip.write_videofile(path, codec="libx264", audio_codec="aac", logger=None)
 
-            # Zip Output
             zip_filename = "pro_reels_output.zip"
             with zipfile.ZipFile(zip_filename, 'w') as zipf:
                 for root, dirs, files in os.walk(output_dir):
@@ -259,7 +253,6 @@ if uploaded_file is not None:
             st.success("প্রো-লেভেল রিলস তৈরি সম্পন্ন!")
             st.download_button("📥 Download All Clips (ZIP)", data=st.session_state.zip_data, file_name="pro_reels.zip", mime="application/zip")
 
-            # Auto Storage Cleanup
             if os.path.exists("input_video.mp4"):
                 os.remove("input_video.mp4")
 
