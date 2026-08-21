@@ -61,7 +61,7 @@ def apply_frame_transform(clip, transform_fn):
 
 st.set_page_config(page_title="Pro Reels Clipper", layout="centered")
 st.title("🎬 Pro Anti-Copyright Reels Clipper")
-st.write("DSLR ব্লার ব্যাকগ্রাউন্ড, অটো-ওয়াটারমার্ক রিমুভার এবং পারফেক্ট লেআউট সহ রিলস তৈরি করুন!")
+st.write("DSLR ব্লার ব্যাকগ্রাউন্ড, অটো-ওয়াটারমার্ক রিমুভার এবং কাস্টম সেটিংস সহ রিলস তৈরি করুন!")
 
 if "zip_data" not in st.session_state:
     st.session_state.zip_data = None
@@ -70,7 +70,6 @@ if "zip_data" not in st.session_state:
 uploaded_file = st.file_uploader("ভিডিও ফাইল (MP4)", type=["mp4"])
 header_text = st.text_input("উপরে ক্যাপশন:", value="শেষের অংশটা মিস করবেন না!")
 watermark_text = st.text_input("নিচের ব্যানারের ওয়াটারমার্ক:", value="Follow for More @CineBongo")
-brand_logo_text = st.text_input("ডানপাশের নীল রঙের লোগো টেক্সট:", value="CineBongo")
 
 # --- MANUAL SELECTION OPTIONS ---
 st.subheader("🎯 ভিডিও কাটিং মোড (Manual Mode Selection)")
@@ -105,9 +104,9 @@ with st.expander("⚙️ কাস্টম সেটিংস (Clips, Colors & 
     
     col1, col2 = st.columns(2)
     with col1:
-        top_color_picker = st.color_picker("উপরের ব্যানারের রঙ", "#006400") # Default Green
+        top_color_picker = st.color_picker("উপরের ব্যানারের রঙ", "#FFD700") # Default Yellow
     with col2:
-        bottom_color_picker = st.color_picker("নিচের ব্যানারের রঙ", "#FF2400") # Default Red
+        bottom_color_picker = st.color_picker("নিচের ব্যানারের রঙ", "#FFFFFF") # Default White
 
 remove_watermark = st.checkbox("অটো-ওয়াটারমার্ক/লোগো রিমুভ (Micro-Crop & Zoom)", value=True)
 
@@ -132,8 +131,7 @@ if uploaded_file is not None:
             
             target_w, target_h = 1080, 1920
             header_font = get_font(46)
-            watermark_font = get_font(36)
-            brand_font = get_font(38)
+            watermark_font = get_font(42) # Bold & Larger size
 
             for idx in range(total_clips):
                 if "১. মাঝের অংশ থেকে" in clip_mode:
@@ -194,45 +192,36 @@ if uploaded_file is not None:
                     # Banners Layout
                     draw = ImageDraw.Draw(canvas)
                     
-                    # Top Banner (9% Height)
+                    # Top Banner
                     top_banner_h = int(target_h * 0.09)
                     draw.rectangle([(0, 0), (target_w, top_banner_h)], fill=top_banner_rgb)
 
-                    # Bottom Banner Attached to Frame Bottom (10% Height for UI Clearance)
-                    bottom_banner_h = int(target_h * 0.10)
+                    # Bottom Banner
+                    bottom_banner_h = int(target_h * 0.09)
                     bottom_banner_y = target_h - bottom_banner_h
                     draw.rectangle([(0, bottom_banner_y), (target_w, target_h)], fill=bottom_banner_rgb)
 
-                    # Top Caption Text
+                    # 1. Top Caption Text
                     if header_text.strip():
                         bbox = draw.textbbox((0, 0), header_text, font=header_font)
                         text_w = bbox[2] - bbox[0]
                         text_h = bbox[3] - bbox[1]
                         tx = (target_w - text_w) // 2
                         ty = (top_banner_h - text_h) // 2 - 4
-                        draw.text((tx, ty), header_text, fill=(255, 255, 255) if top_banner_rgb[0] < 128 else (0, 0, 0), font=header_font)
+                        draw.text((tx, ty), header_text, fill=(0, 0, 0), font=header_font)
 
-                    # Bottom Banner Text (Centered with Top Padding for Reels Player UI)
+                    # 2. Bottom Banner Text (Bold Deep Black Color)
                     if watermark_text.strip():
                         bbox = draw.textbbox((0, 0), watermark_text, font=watermark_font)
                         text_w = bbox[2] - bbox[0]
                         text_h = bbox[3] - bbox[1]
                         tx = (target_w - text_w) // 2
-                        # Upper alignment inside the banner to stay clear of bottom Android navigation bar
-                        ty = bottom_banner_y + 25 
-                        draw.text((tx, ty), watermark_text, fill=(255, 255, 255), font=watermark_font)
-
-                    # Floating Watermark on Main Video Bottom-Right
-                    if brand_logo_text.strip():
-                        bbox = draw.textbbox((0, 0), brand_logo_text, font=brand_font)
-                        logo_w = bbox[2] - bbox[0]
-                        logo_h = bbox[3] - bbox[1]
+                        ty = bottom_banner_y + (bottom_banner_h - text_h) // 2 - 4
                         
-                        lx = target_w - logo_w - 35
-                        ly = fg_y + fg_h - logo_h - 15
-
-                        draw.text((lx + 2, ly + 2), brand_logo_text, fill=(0, 0, 0), font=brand_font)
-                        draw.text((lx, ly), brand_logo_text, fill=(0, 210, 255), font=brand_font)
+                        # Simulated Bold Effect by rendering text offsets
+                        for offset_x in [-1, 0, 1]:
+                            for offset_y in [-1, 0, 1]:
+                                draw.text((tx + offset_x, ty + offset_y), watermark_text, fill=(0, 0, 0), font=watermark_font)
 
                     return np.array(canvas)
 
